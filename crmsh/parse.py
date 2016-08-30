@@ -42,7 +42,7 @@ _TAG_RE = re.compile(r"([a-zA-Z_][^\s:]*):?$")
 _ROLE2_RE = re.compile(r"role=(.+)$", re.IGNORECASE)
 _TARGET_RE = re.compile(r'([^:]+):$')
 _TARGET_ATTR_RE = re.compile(r'attr:([\w-]+)=([\w-]+)$', re.IGNORECASE)
-TERMINATORS = ('params', 'meta', 'utilization', 'operations', 'op', 'rule', 'attributes')
+TERMINATORS = ('params', 'meta', 'utilization', 'operations', 'op', 'op_params', 'op_meta', 'rule', 'attributes')
 
 
 class ParseError(Exception):
@@ -704,13 +704,18 @@ class ResourceParser(BaseParser):
             all_attrs.append(xmlutil.nvpair('interval', '0'))
         valid_attrs = validator.op_attributes()
         inst_attrs = None
+        nvpairs_missed = 0
         for nvp in all_attrs:
             if nvp.get('name') in valid_attrs:
                 node.set(nvp.get('name'), nvp.get('value'))
             else:
-                if inst_attrs is None:
-                    inst_attrs = xmlutil.child(node, 'instance_attributes')
-                inst_attrs.append(nvp)
+                nvpairs_missed += 1
+        for i in range(nvpairs_missed):
+            self.rewind()
+        for attr_list in self.match_attr_lists({'op_params': 'instance_attributes',
+                                                'op_meta': 'meta_attributes'},
+                                                implicit_initial='op_params'):
+            node.append(attr_list)
         out.append(node)
 
     def match_operations(self, out, match_id):
